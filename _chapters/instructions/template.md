@@ -1,101 +1,125 @@
 ---
-title: Template
-keywords:
-order: 0
+author:
+- Ray Gifford
+date: December 2021
+title: "Lecture 17: Self-Supervised 3D Vision"
 ---
 
-You can start your notes here before you start diving into specific topics under each heading. This is a useful place to define the topic of the day and lay out the structure of your lecture notes. You'll edit the Markdown file, in this case template.md, which will automatically convert to HTML and serve this web page you're reading! 
+# Introduction
 
-The table of contents can link to each section so long as you match the names right (see comments in template.md for more elaboration on this!). This Markdown to HTML mapping doesn't like periods in the section titles and won't link them from the table of contents, so use dashes instead if you need to.
+In this class so far, we have discussed geometric image formation, and
+epipolar geometry in determining 3D points in stereo scenes, primarily
+within the context of pinhole camera models. We have also
+discussed the foundations of machine learning, including discussion of
+back-propagation, to help us find ideal weights for a neural network. It
+is often the case that camera's and various environmental factors
+deviate from the pinhole camera model. Additionally, expensive sensors,
+including LIDAR, or multi-view camera setups, may not be accessible for
+depth estimation. We already have, at our disposal, large
+amounts of data, collected from simple monocular setups. 
+Monocular depth estimation has empirically been shown to serve as a
+bottleneck, for 3D detection. In this lecture we build on these 
+concepts, to introduce a method of estimating depth using a single
+camera, that uses self-supervision to derive an objective function from
+raw data.
 
-- [First Big Topic](#first-big-topic)
-	- [Subtopic 1-1](#subtopic-1-1)
-	- [Subtopic 1-2](#subtopic-1-2)
-	- [Subtopic 1-3](#subtopic-1-3)
-- [Second Big Topic](#topic2)
+# 3D Self-Supervision
 
-[//]: # (This is how you can make a comment that won't appear in the web page! It might be visible on some machines/browsers so use this only for development.)
+Conceptually, what we want to do to achieve a 3D self-supervised vision,
+is we want to leverage our geometric prior knowledge, discussed in
+previous lectures, to derive our objective function that guides learning
+for our depth network, and back-propagate loss to adjust depth network
+weights. Further, in the end, we want to apply this depth network to
+monocular setups.
 
-[//]: # (Notice in the table of contents that [First Big Topic] matches #first-big-topic, except for all lowercase and spaces are replaced with dashes. This is important so that the table of contents links properly to the sections)
+## Self-Supervised Stereo Training
 
-[//]: # (Leave this line here, but you can replace the name field with anything! It's used in the HTML structure of the page but isn't visible to users)
-<a name='Topic 1'></a>
+To begin, we start with a stereo case. Here we have previously thought
+of using epipolar geometry to determine pixel correspondence, then
+triangulate to calculate 3D points. Here instead, we want to build
+something that might be applicable to monocular setups. We want to find
+pixel correspondence between two viewpoints, via depth re-projection. We
+know the depth from the ray along the pixel, we know the depth of the 3D
+point. We \"deproject\" then re-project this depth to the other image,
+and find a pixel with matched depth.
 
-## First Big Topic
-	
-Here you can start to talk about the first topic of your notes. You can bold text like **this**, or italicize text like *this*. If you want to make a numbered list it's as easy as
-1.  
-2. 
-3. 
+::: center
+![image](Figure1.png)
+:::
 
-- Bullet
-- points
-- are
-- similar 
+**Figure 1: Self-supervised stereo training flow diagram**\
+These two pixels should be corresponding to the same 3D point, from
+different viewpoints, and as such are expected to have the same pixel
+color values. We create an objective function from this re-projection
+and attempt to re-synthesize the \"left\" image from the \"right\"
+image, as seen in Figure 1, by copying over corresponding pixels
+one-by-one, a process called *view synthesis*. Because we trust that our
+geometry is correct (at least for cases where our system best fits a
+pinhole camera model), our loss must represent error in our depth
+network weights. Our loss, in this case, is calculated from the difference
+in pixel color values (*photometric loss*). We then back-propagate this
+loss to correct depth network weights.
 
-For a more detailed cheatsheet on the most important functionality of Markdown, check out this link https://wordpress.com/support/markdown-quick-reference/, which you can format in Markdown with your own [link title](https://wordpress.com/support/markdown-quick-reference/)
+::: center
+![image](Figure2.png)
+:::
 
+**Figure 2: Depth model loss calculation**\
+In addition to photometric loss, depth regularization factor and
+occlusion regularization factor are included, to compute loss. This
+encourages the model to be consistent with expected sudden depth changes
+at object discontinuity, and to have a depth map consistent with
+expected visual occlusions, respectively.
 
-<a name='Subtopic 1-1'></a>
-### Subtopic 1-1
-You might want to include images in your notes, since Computer Vision as a field is blessed with tons of cool visualizations. Here's an example from the CS 231N notes page we included as a reference for you:
+## Effects of Resolution
 
-<div class="fig figcenter fighighlight">
-  <img src="{{ site.baseurl }}/assets/examples/classify.png">
-  <div class="figcaption">Put your informative caption here! If you really want to mess around with the classes in this div container then feel free, but inserting images just like this should work great!</div>
-</div>
+When considering the applicability of such a self-supervised depth
+estimation, to both multi-view and single camera setups, it brings up a
+question of the generalizability, to different camera types, of various
+resolutions. To conceptualize the effect of increasing resolution on
+this depth model, we can think of probability of calculating non-zero
+loss at a pixel of interest. With increased resolution, it may be
+expected that the opportunity for a non-zero color difference per pixel
+will also increase; as pixel grids will be differentiated into more
+individual small blocks, rather than be averaged into larger
+homogeneous color blocks. This allows more opportunites for depth weight
+adjustments, via back-propagation. Empirically, it has been found to be the case
+that in fact the model performance increases with increasing
+resolution.\
+This led researchers to try guessing a higher resolution image from a
+small image, before using a depth estimation model. *Super-resolution*
+is used to describe this process of interpolating from a small image to
+a larger image size, and has helped improve model performance in some
+cases.
 
-<a name='Subtopic 1-2'></a>
-### Subtopic 1-2
-Sometimes you might want to insert some code snippets into your notes. As an example, here's a snippet of python code taken from the CS 231N notes:
-```python
-Xtr, Ytr, Xte, Yte = load_CIFAR10('data/cifar10/') # a magic function we provide
-# flatten out all images to be one-dimensional
-Xtr_rows = Xtr.reshape(Xtr.shape[0], 32 * 32 * 3) # Xtr_rows becomes 50000 x 3072
-Xte_rows = Xte.reshape(Xte.shape[0], 32 * 32 * 3) # Xte_rows becomes 10000 x 3072
-```
+## Self-Supervised Monocular Training
 
-<a name='Subtopic 1-3'></a>
-### Subtopic 1-3
-Sometimes you might want to write some mathematical equations, and LaTeX is a great tool for that! You can write an inline equation like this \\( a^2 = b^2 \\), or you can display an equation on its own line like this! \\[ a^2 = b^2 + c^2 \\]
+To apply the depth model to monocular camera setups, we can sample
+frames at two different time points from video. However, in this case
+our images are not matched in time, and thus incorporate world motion
+and egomotion artifacts. The latter we can estimate, and correct for,
+and the former we assume to be negligible.
 
-You can also apply LaTeX syntax to label your equations and refer to them later! Here's the equation:
+::: center
+![image](figure3.png)
+:::
 
-$$ \begin{equation} \label{your_label} a^2 = b^2 + c^2 + d^2 + e^2 \end{equation} $$
+**Figure 3: PackNet-SFM training flow diagram. A high resolution
+self-supervised monocular depth estimation.**\
+As seen in Figure 3, for the PackNet-SFM model, concatenated frames are
+fed into a pose convolutional neural network. The output of which is
+accepted to represent egomotion rotation and translation between frames.
+Using matrix operations described earlier in the quarter, we attempt to
+undo source image egomotion rotation and translation. We then estimate
+depth in the target image, look for pixel correspondence and reform the
+target image from the corrected source image.
 
-and here's a linked reference to it: \eqref{your_label}. For now, this configuration likes the \\"\\$\\$ equation stuff ... \\$\\$\\" syntax to have an empty line above and below it, but it displays the same anyway.
+## Non-Pinhole Cameras
 
-**For a guide on LaTeX syntax and how to write mathematical equations and formulas with it, check out [this link](https://www.overleaf.com/learn/latex/mathematical_expressions)** 
-
-**Here's a short guide on how to use the basics of LaTeX**
-- You've seen above the syntax to start and end an equation, so now let's work on what you fill in the middle
-- You can make variables and expressions **bold** in equations too: \\(\mathbf{x} + y\\)
-- Superscripts and subscripts are easy: use the ^ and _ symbol and bound your super/sub script by {} if it's more than one character. For example: \\(e^{-x+10}\\)
-- Greek letters are also simple, use the \ character with their written name with optional capitalization, such as alpha or Alpha. For example: \\(\alpha + \beta + \gamma + \delta + \Gamma + \Delta\\). Not all capital greek letters work like this, but you can search online for solutions if this trick fails or reach out to the CA's. In general the \ character in LaTeX is the gateway to all kinds of special characters and functionalities.
-- Sums and Products are really useful in Latex. You can use both superscripts and subscripts to mark the bounds: \\(\log(\prod_{i=0}^{2n}i^2) = \sum_{i=0}^{2n}\log (i^2)\\)
-- Another useful trick is to write out a matrix or a vector in LaTex. There's a lot of customization you can do with this, so check out this [page](https://www.overleaf.com/learn/latex/Matrices) for more details. Here's some examples in our Markdown environment: 
-
-
-$$\begin{bmatrix}
-1 & 2 & 3\\
-a & b & c
-\end{bmatrix}$$
-
-$$\begin{bmatrix}
-1\\
-2\\
-3\\
-\end{bmatrix}$$
-
-$$\begin{bmatrix}
-1 & 2 & 3\\
-\end{bmatrix}$$
-
-As with the labelled equations, it makes a difference whether the lines above and below the equation are blank, so keep that in mind while debugging! 
-
-
-
-
-<a name='Topic 2'></a>
-## Second Big Topic
-This should give you the primary tools to develop your notes. Check out the [markdown quick reference](https://wordpress.com/support/markdown-quick-reference/) for any further Markdown functionality that you may find useful, and reach out to the teaching team on Piazza if you have any questions about how to create your lecture notes
+Up until this point, we have considered cases which fit our pinhole
+camera model representation. Many cameras, do not fit this model. An
+alternative approach is to use deep nets to predict per pixel rays, and
+generate a generic *Neural Ray Surface* representation. The per pixel
+rays are used similarly to the image pixel values during the model view
+synthesis step. Other alternative approaches exist and are the subject
+of current research.
