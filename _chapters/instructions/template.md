@@ -43,9 +43,9 @@ know the depth from the ray along the pixel, we know the depth of the 3D
 point. We \"deproject\" then re-project this depth to the other image,
 and find a pixel with matched depth.
 
-::: center
-![image](Figure1.png)
-:::
+<div class="fig figcenter fighighlight">
+  <img src="{{ site.baseurl }}/assets/examples/Figure1.png">
+</div>
 
 **Figure 1: Self-supervised stereo training flow diagram**\
 These two pixels should be corresponding to the same 3D point, from
@@ -60,9 +60,9 @@ network weights. Our loss, in this case, is calculated from the difference
 in pixel color values (*photometric loss*). We then back-propagate this
 loss to correct depth network weights.
 
-::: center
-![image](Figure2.png)
-:::
+<div class="fig figcenter fighighlight">
+  <img src="{{ site.baseurl }}/assets/examples/Figure2.png">
+</div>
 
 **Figure 2: Depth model loss calculation**\
 In addition to photometric loss, depth regularization factor and
@@ -100,9 +100,9 @@ our images are not matched in time, and thus incorporate world motion
 and egomotion artifacts. The latter we can estimate, and correct for,
 and the former we assume to be negligible.
 
-::: center
-![image](figure3.png)
-:::
+<div class="fig figcenter fighighlight">
+  <img src="{{ site.baseurl }}/assets/examples/figure3.png">
+</div>
 
 **Figure 3: PackNet-SFM training flow diagram. A high resolution
 self-supervised monocular depth estimation.**\
